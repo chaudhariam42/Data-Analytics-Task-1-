@@ -1,0 +1,47 @@
+import os
+os.environ["JAVA_HOME"] = "/usr/lib/jvm/java-8-openjdk-amd64"
+os.environ["SPARK_HOME"] = "/usr/local/lib/python3.10/dist-packages/pyspark"
+
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col, rand, round, avg, count
+from pyspark.sql.types import IntegerType
+
+spark = SparkSession.builder \
+    .appName("CODTECH_BigData_Analysis") \
+    .getOrCreate()
+
+spark.sparkContext.setLogLevel("ERROR")
+
+rows = 10_000_000
+df = spark.range(0, rows)
+
+df = df.select(
+    (col("id") % 24).cast(IntegerType()).alias("pickup_hour"),
+    round(rand() * 50, 2).alias("trip_distance"),
+    round(rand() * 100, 2).alias("fare_amount"),
+    ((rand() * 5) + 1).cast(IntegerType()).alias("passenger_count")
+)
+
+df_clean = df.filter(
+    (col("trip_distance") > 0) &
+    (col("fare_amount") > 0)
+)
+
+df_clean.select(
+    avg("trip_distance").alias("Average Trip Distance"),
+    avg("fare_amount").alias("Average Fare Amount")
+).show()
+
+df_clean.groupBy("pickup_hour") \
+    .agg(count("*").alias("Total Trips")) \
+    .orderBy("pickup_hour") \
+    .show()
+
+df_clean.groupBy("passenger_count") \
+    .count() \
+    .orderBy("passenger_count") \
+    .show()
+
+print("Partitions Used:", df_clean.rdd.getNumPartitions())
+
+spark.stop()
